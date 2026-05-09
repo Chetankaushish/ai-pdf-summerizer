@@ -1,160 +1,309 @@
 import streamlit as st
-from dotenv import load_dotenv
-import os
-import google.generativeai as genai
 from pypdf import PdfReader
+from dotenv import load_dotenv
+from openai import OpenAI
+import os
+import time
 
+# =========================
 # Load Environment Variables
+# =========================
+
 load_dotenv()
 
-# Page Config
+# =========================
+# OpenRouter Client
+# =========================
+
+client = OpenAI(
+    base_url="https://openrouter.ai/api/v1",
+    api_key=os.getenv("OPENROUTER_API_KEY")
+)
+
+# =========================
+# Streamlit Page Config
+# =========================
+
 st.set_page_config(
     page_title="AI PDF Summarizer",
     page_icon="📄",
-    layout="centered"
+    layout="wide"
 )
 
+# =========================
+# Sidebar Settings
+# =========================
+
+st.sidebar.title("⚙️ Settings")
+
+selected_model = st.sidebar.selectbox(
+    "Choose AI Model",
+    [
+        "openai/gpt-4o-mini",
+        "meta-llama/llama-3.1-8b-instruct",
+        "google/gemini-2.0-flash-exp:free"
+    ]
+)
+
+summary_length = st.sidebar.selectbox(
+    "Summary Length",
+    ["Short", "Medium", "Detailed"]
+)
+
+summary_language = st.sidebar.selectbox(
+    "Summary Language",
+    ["English", "Hindi"]
+)
+
+theme_mode = st.sidebar.radio(
+    "Theme",
+    ["Light", "Dark"]
+)
+
+# =========================
+# Theme Colors
+# =========================
+
+if theme_mode == "Dark":
+
+    background_color = "#0e1117"
+    card_color = "#161b22"
+    text_color = "white"
+
+else:
+
+    background_color = "#f5f7fb"
+    card_color = "white"
+    text_color = "#222"
+
+# =========================
 # Custom CSS
-st.markdown("""
-<style>
+# =========================
 
-body {
-    background-color: #f5f7fb;
-}
-
-.title {
-    text-align: center;
-    font-size: 50px;
-    font-weight: bold;
-    color: #222;
-    margin-top: 20px;
-}
-
-.subtitle {
-    text-align: center;
-    color: gray;
-    margin-bottom: 30px;
-    font-size: 18px;
-}
-
-.box {
-    background: white;
-    padding: 25px;
-    border-radius: 15px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
-}
-
-.stButton > button {
-    width: 100%;
-    height: 50px;
-    background-color: #6C63FF;
-    color: white;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 10px;
-    border: none;
-}
-
-.stButton > button:hover {
-    background-color: #574bdb;
-    color: white;
-}
-
-.summary-box {
-    background: white;
-    padding: 20px;
-    border-radius: 15px;
-    margin-top: 20px;
-    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-# Title
 st.markdown(
-    '<div class="title">📄 AI PDF Summarizer</div>',
+    f"""
+    <style>
+
+    .stApp {{
+        background-color: {background_color};
+    }}
+
+    .main-title {{
+        text-align: center;
+        font-size: 58px;
+        font-weight: 700;
+        color: {text_color};
+        margin-top: 20px;
+    }}
+
+    .sub-title {{
+        text-align: center;
+        color: gray;
+        font-size: 20px;
+        margin-bottom: 40px;
+    }}
+
+    .upload-container {{
+        background-color: {card_color};
+        padding: 30px;
+        border-radius: 20px;
+        box-shadow: 0px 0px 15px rgba(0,0,0,0.08);
+    }}
+
+    .summary-container {{
+        background-color: {card_color};
+        padding: 30px;
+        border-radius: 20px;
+        margin-top: 25px;
+        box-shadow: 0px 0px 15px rgba(0,0,0,0.08);
+        color: {text_color};
+    }}
+
+    .stButton > button {{
+        width: 100%;
+        height: 55px;
+        border-radius: 12px;
+        background-color: #6C63FF;
+        color: white;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+    }}
+
+    .stButton > button:hover {{
+        background-color: #574bdb;
+        color: white;
+    }}
+
+    .footer {{
+        text-align: center;
+        margin-top: 40px;
+        color: gray;
+        font-size: 14px;
+    }}
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# =========================
+# Header Section
+# =========================
+
+st.markdown(
+    '<div class="main-title">📄 AI PDF Summarizer</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="subtitle">Upload PDF and generate AI summary instantly</div>',
+    '<div class="sub-title">Upload PDFs and generate AI-powered summaries instantly</div>',
     unsafe_allow_html=True
 )
 
-# Upload Box
-st.markdown('<div class="box">', unsafe_allow_html=True)
+# =========================
+# Upload Section
+# =========================
 
-uploaded_file = st.file_uploader(
-    "Upload PDF File",
-    type=["pdf"]
+st.markdown(
+    '<div class="upload-container">',
+    unsafe_allow_html=True
 )
 
-generate = st.button("✨ Generate Summary")
+uploaded_files = st.file_uploader(
+    "📂 Upload PDF Files",
+    type=["pdf"],
+    accept_multiple_files=True
+)
 
-st.markdown('</div>', unsafe_allow_html=True)
+generate_summary = st.button("✨ Generate Summary")
 
-# Generate Summary
-if generate:
+st.markdown(
+    '</div>',
+    unsafe_allow_html=True
+)
 
-    if uploaded_file is None:
+# =========================
+# PDF Text Extraction
+# =========================
 
-        st.warning("Please upload a PDF file.")
+def extract_pdf_text(files):
+
+    combined_text = ""
+
+    for uploaded_file in files:
+
+        pdf_reader = PdfReader(uploaded_file)
+
+        for page in pdf_reader.pages[:3]:
+
+            page_text = page.extract_text()
+
+            if page_text:
+                combined_text += page_text
+
+    return combined_text[:6000]
+
+# =========================
+# Prompt Builder
+# =========================
+
+def create_prompt(text, language, length):
+
+    if language == "Hindi":
+        language_instruction = "Generate the summary in Hindi."
+    else:
+        language_instruction = "Generate the summary in English."
+
+    if length == "Short":
+        length_instruction = "Provide a short summary using bullet points."
+
+    elif length == "Medium":
+        length_instruction = "Provide a medium-length clear summary."
+
+    else:
+        length_instruction = "Provide a detailed summary with explanations."
+
+    prompt = f"""
+    {language_instruction}
+
+    {length_instruction}
+
+    Summarize the following PDF content:
+
+    {text}
+    """
+
+    return prompt
+
+# =========================
+# Generate AI Summary
+# =========================
+
+if generate_summary:
+
+    if not uploaded_files:
+
+        st.warning("⚠️ Please upload at least one PDF file.")
 
     else:
 
         try:
 
-            # Read PDF
-            pdf_reader = PdfReader(uploaded_file)
+            # Extract Text
+            pdf_text = extract_pdf_text(uploaded_files)
 
-            text = ""
-
-            for page in pdf_reader.pages[:5]:
-                text += page.extract_text()
-
-            text = text[:12000]
-
-            # API Key
-            api_key = os.getenv("GOOGLE_API_KEY")
-
-            if not api_key:
-                st.error("Google API Key not found!")
-                st.stop()
-
-            # Configure Gemini
-            genai.configure(api_key=api_key)
-
-            # Model
-            model = genai.GenerativeModel("models/gemini-2.0-flash")
-
-            # Prompt
-            prompt = f"""
-            Summarize this PDF in simple language:
-
-            {text}
-            """
+            # Build Prompt
+            final_prompt = create_prompt(
+                pdf_text,
+                summary_language,
+                summary_length
+            )
 
             # Generate Response
-            with st.spinner("Generating Summary..."):
+            with st.spinner("Generating AI Summary..."):
 
-                response = model.generate_content(prompt)
+                response = client.chat.completions.create(
+                    model=selected_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": final_prompt
+                        }
+                    ]
+                )
 
-            # Output
+            summary = response.choices[0].message.content
+
+            # =========================
+            # Summary Output
+            # =========================
+
             st.markdown(
-                '<div class="summary-box">',
+                '<div class="summary-container">',
                 unsafe_allow_html=True
             )
 
-            st.subheader("📌 Summary")
+            st.subheader("📌 AI Generated Summary")
 
-            st.write(response.text)
+            typing_placeholder = st.empty()
+
+            displayed_text = ""
+
+            for word in summary.split():
+
+                displayed_text += word + " "
+
+                typing_placeholder.markdown(displayed_text)
+
+                time.sleep(0.02)
 
             # Download Button
             st.download_button(
-                "⬇ Download Summary",
-                response.text,
-                file_name="summary.txt"
+                label="⬇️ Download Summary",
+                data=summary,
+                file_name="summary.txt",
+                mime="text/plain"
             )
 
             st.markdown(
@@ -162,6 +311,15 @@ if generate:
                 unsafe_allow_html=True
             )
 
-        except Exception as e:
+        except Exception as error:
 
-            st.error(f"Error: {e}")
+            st.error(f"❌ Error: {error}")
+
+# =========================
+# Footer
+# =========================
+
+st.markdown(
+    '<div class="footer">Made with ❤️ using Streamlit + OpenRouter</div>',
+    unsafe_allow_html=True
+)
