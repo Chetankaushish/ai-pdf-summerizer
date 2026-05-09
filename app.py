@@ -1,8 +1,7 @@
 import streamlit as st
 from dotenv import load_dotenv
 import os
-
-from langchain_google_genai import ChatGoogleGenerativeAI
+import google.generativeai as genai
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -133,12 +132,18 @@ if generate:
                 st.error("Google API Key not found!")
                 st.stop()
 
-            # Gemini Model
-            llm = ChatGoogleGenerativeAI(
-                model="models/gemini-1.5-flash",
-                google_api_key=api_key,
-                temperature=0.3
-            )
+        
+            # Configure Gemini
+
+genai.configure(api_key=api_key)
+
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+# Generate response
+response = model.generate_content(prompt)
+
+# Show summary
+st.write(response.text)
 
             # Prompt
             prompt = f"""
