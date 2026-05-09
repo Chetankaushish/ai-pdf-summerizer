@@ -96,12 +96,12 @@ if generate:
 
     if uploaded_file is None:
         st.warning("Please upload a PDF file.")
-    
+
     else:
 
         try:
 
-            # Save temp PDF
+            # Save PDF
             with open("temp.pdf", "wb") as f:
                 f.write(uploaded_file.read())
 
@@ -109,7 +109,7 @@ if generate:
             loader = PyPDFLoader("temp.pdf")
             documents = loader.load()
 
-            # Split Text
+            # Split text
             text_splitter = RecursiveCharacterTextSplitter(
                 chunk_size=1500,
                 chunk_overlap=200
@@ -117,7 +117,7 @@ if generate:
 
             docs = text_splitter.split_documents(documents)
 
-            # Limit text size
+            # Collect text
             full_text = ""
 
             for doc in docs[:5]:
@@ -125,29 +125,23 @@ if generate:
 
             full_text = full_text[:12000]
 
-            # API KEY Check
+            # API KEY
             api_key = os.getenv("GOOGLE_API_KEY")
 
             if not api_key:
                 st.error("Google API Key not found!")
                 st.stop()
 
-        
-            # Configure Gemini
+            # Gemini SDK
+            import google.generativeai as genai
 
-genai.configure(api_key=api_key)
+            genai.configure(api_key=api_key)
 
-model = genai.GenerativeModel("gemini-1.5-flash")
-
-# Generate response
-response = model.generate_content(prompt)
-
-# Show summary
-st.write(response.text)
+            model = genai.GenerativeModel("gemini-1.5-flash")
 
             # Prompt
             prompt = f"""
-            Summarize the following PDF content in simple language:
+            Summarize this PDF in simple language:
 
             {full_text}
             """
@@ -155,16 +149,13 @@ st.write(response.text)
             # Generate Summary
             with st.spinner("Generating Summary..."):
 
-                response = llm.invoke(prompt)
+                response = model.generate_content(prompt)
 
-            # Output
-            st.markdown('<div class="summary-box">', unsafe_allow_html=True)
-
+            # Show Summary
             st.subheader("📌 Summary")
 
-            st.write(response.content)
-
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.write(response.text)
 
         except Exception as e:
+
             st.error(f"Error: {e}")
