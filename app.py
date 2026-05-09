@@ -6,60 +6,160 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+# Load env
 load_dotenv()
 
-st.set_page_config(page_title="AI PDF Summarizer")
-
-st.title("📄 AI PDF Summarizer")
-
-uploaded_file = st.file_uploader(
-    "Upload PDF",
-    type="pdf"
+# Page Config
+st.set_page_config(
+    page_title="AI PDF Summarizer",
+    page_icon="📄",
+    layout="centered"
 )
 
-if uploaded_file is not None:
+# Custom CSS
+st.markdown("""
+<style>
 
-    # Save PDF temporarily
-    with open("temp.pdf", "wb") as f:
-        f.write(uploaded_file.read())
+.main {
+    background-color: #f5f7fb;
+}
 
-    # Load PDF
-    loader = PyPDFLoader("temp.pdf")
-    documents = loader.load()
+.title {
+    text-align: center;
+    font-size: 50px;
+    font-weight: bold;
+    color: #262730;
+    margin-top: 20px;
+}
 
-    # Split text
-    text_splitter = RecursiveCharacterTextSplitter(
-        chunk_size=2000,
-        chunk_overlap=200
-    )
+.subtitle {
+    text-align: center;
+    color: gray;
+    margin-bottom: 30px;
+}
 
-    docs = text_splitter.split_documents(documents)
+.stButton>button {
+    width: 100%;
+    background-color: #6C63FF;
+    color: white;
+    border-radius: 10px;
+    height: 50px;
+    font-size: 18px;
+    font-weight: bold;
+    border: none;
+}
 
-    # Combine all text
-    full_text = ""
+.stButton>button:hover {
+    background-color: #574bdb;
+    color: white;
+}
 
-    for doc in docs:
-        full_text += doc.page_content
+.upload-box {
+    padding: 20px;
+    border-radius: 12px;
+    background-color: white;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+}
 
-    # Gemini model
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
-        temperature=0.3
-    )
+.summary-box {
+    background-color: white;
+    padding: 20px;
+    border-radius: 12px;
+    margin-top: 20px;
+    box-shadow: 0px 0px 10px rgba(0,0,0,0.1);
+}
 
-    # Prompt
-    prompt = f"""
-    Summarize the following PDF content in simple language:
+</style>
+""", unsafe_allow_html=True)
 
-    {full_text}
-    """
+# Title
+st.markdown('<div class="title">📄 AI PDF Summarizer</div>', unsafe_allow_html=True)
 
-    # Generate summary
-    with st.spinner("Generating Summary..."):
+st.markdown(
+    '<div class="subtitle">Upload your PDF and generate AI summary instantly</div>',
+    unsafe_allow_html=True
+)
 
-        response = llm.invoke(prompt)
+# Upload Section
+st.markdown('<div class="upload-box">', unsafe_allow_html=True)
 
-    # Show result
-    st.subheader("Summary")
+uploaded_file = st.file_uploader(
+    "Upload PDF File",
+    type=["pdf"]
+)
 
-    st.write(response.content)
+generate = st.button("✨ Generate Summary")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# Main Logic
+if generate:
+
+    if uploaded_file is None:
+        st.warning("Please upload a PDF file.")
+    
+    else:
+
+        try:
+
+            # Save temp PDF
+            with open("temp.pdf", "wb") as f:
+                f.write(uploaded_file.read())
+
+            # Load PDF
+            loader = PyPDFLoader("temp.pdf")
+            documents = loader.load()
+
+            # Split Text
+            text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1500,
+                chunk_overlap=200
+            )
+
+            docs = text_splitter.split_documents(documents)
+
+            # Limit text size
+            full_text = ""
+
+            for doc in docs[:5]:
+                full_text += doc.page_content
+
+            full_text = full_text[:12000]
+
+            # API KEY Check
+            api_key = os.getenv("GOOGLE_API_KEY")
+
+            if not api_key:
+                st.error("Google API Key not found!")
+                st.stop()
+
+            # Gemini Model
+            llm = ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash",
+                google_api_key=api_key,
+                temperature=0.3
+            )
+
+            # Prompt
+            prompt = f"""
+            Summarize the following PDF content in simple language:
+
+            {full_text}
+            """
+
+            # Generate Summary
+            with st.spinner("Generating Summary..."):
+
+                response = llm.invoke(prompt)
+
+            # Output
+            st.markdown('<div class="summary-box">', unsafe_allow_html=True)
+
+            st.subheader("📌 Summary")
+
+            st.write(response.content)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+        except Exception as e:
+            st.error(f"Error: {e}")
