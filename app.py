@@ -159,7 +159,7 @@ if generate_summary:
             genai.configure(api_key=api_key)
 
             # Gemini Model
-            model = genai.GenerativeModel("gemini-pro")
+            model = genai.GenerativeModel("models/gemini-1.5-flash")
 
             # Prompt
             prompt = f"""
