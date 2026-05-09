@@ -126,7 +126,7 @@ if generate:
             genai.configure(api_key=api_key)
 
             # Model
-            model = genai.GenerativeModel("gemini-1.5-flash")
+            model = genai.GenerativeModel("models/gemini-2.0-flash")
 
             # Prompt
             prompt = f"""
