@@ -284,7 +284,7 @@ if generate_summary:
                 unsafe_allow_html=True
             )
 
-            st.subheader("📌 AI Generated Summary")
+            st.subheader("📌 AI Generated Summary by CS")
 
             typing_placeholder = st.empty()
 
