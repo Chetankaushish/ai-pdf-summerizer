@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import os
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_text_splitters import RecursiveChar
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain.chains.summarize import load_summarize_chain
 from langchain_community.document_loaders import PyPDFLoader
 
