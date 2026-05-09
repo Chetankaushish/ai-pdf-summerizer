@@ -1,2 +1,2 @@
 # ai-pdf-summerizer
-AI app that summerizes pdf and explian
+AI app that summerizes pdf and explain
