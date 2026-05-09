@@ -3,27 +3,23 @@ from dotenv import load_dotenv
 import os
 
 from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain.chains.summarize import load_summarize_chain
 from langchain_community.document_loaders import PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Load environment variables
 load_dotenv()
 
-# Streamlit page settings
 st.set_page_config(page_title="AI PDF Summarizer")
 
 st.title("📄 AI PDF Summarizer")
 
-# Upload PDF
 uploaded_file = st.file_uploader(
-    "Upload your PDF",
+    "Upload PDF",
     type="pdf"
 )
 
 if uploaded_file is not None:
 
-    # Save uploaded PDF temporarily
+    # Save PDF temporarily
     with open("temp.pdf", "wb") as f:
         f.write(uploaded_file.read())
 
@@ -31,7 +27,7 @@ if uploaded_file is not None:
     loader = PyPDFLoader("temp.pdf")
     documents = loader.load()
 
-    # Split text into chunks
+    # Split text
     text_splitter = RecursiveCharacterTextSplitter(
         chunk_size=2000,
         chunk_overlap=200
@@ -39,22 +35,31 @@ if uploaded_file is not None:
 
     docs = text_splitter.split_documents(documents)
 
-    # Load Gemini model
+    # Combine all text
+    full_text = ""
+
+    for doc in docs:
+        full_text += doc.page_content
+
+    # Gemini model
     llm = ChatGoogleGenerativeAI(
-        model="model/gemini-1.5-flash",
+        model="gemini-1.5-flash",
         temperature=0.3
     )
 
-    # Create summarize chain
-    chain = load_summarize_chain(
-        llm,
-        chain_type="map_reduce"
-    )
+    # Prompt
+    prompt = f"""
+    Summarize the following PDF content in simple language:
+
+    {full_text}
+    """
 
     # Generate summary
     with st.spinner("Generating Summary..."):
-        summary = chain.run(docs)
 
-    # Show summary
+        response = llm.invoke(prompt)
+
+    # Show result
     st.subheader("Summary")
-    st.write(summary)
+
+    st.write(response.content)
