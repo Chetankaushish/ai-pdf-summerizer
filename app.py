@@ -135,7 +135,7 @@ if generate:
 
             # Gemini Model
             llm = ChatGoogleGenerativeAI(
-                model="gemini-1.5-flash-latest",
+                model="models/gemini-1.5-flash",
                 google_api_key=api_key,
                 temperature=0.3
             )
